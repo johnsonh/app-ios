@@ -1,6 +1,8 @@
 import UIKit
 import CoreData
 import Dip
+import AppCenter
+import AppCenterDistribute
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
