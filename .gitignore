@@ -26,7 +26,8 @@ DerivedData/
 *.hmap
 
 ## App packaging
-*.ipa
+# Commenting this out to allow downloading the ipa from GitHub until we have TestFlight going
+#*.ipa
 *.dSYM.zip
 *.dSYM
 
