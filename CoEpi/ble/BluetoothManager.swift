@@ -10,7 +10,7 @@ protocol CentralDelegate: class {
     func onCentralContact(_ contact: Contact)
 }
 
-class Central: NSObject {
+class BluetoothManager: NSObject {
     private weak var delegate: CentralDelegate?
 
     private var centralManager: CBCentralManager!
@@ -259,7 +259,7 @@ class Central: NSObject {
 
 }
 
-extension Central: CBCentralManagerDelegate {
+extension BluetoothManager: CBCentralManagerDelegate {
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         os_log("Central manager did update state: %d", log: bleCentralLog, central.state.rawValue)
@@ -392,7 +392,7 @@ extension Central: CBCentralManagerDelegate {
 }
 
 
-extension Central: CBPeripheralDelegate {
+extension BluetoothManager: CBPeripheralDelegate {
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         guard let services = peripheral.services else { return }

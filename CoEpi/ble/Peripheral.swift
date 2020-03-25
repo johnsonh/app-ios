@@ -2,20 +2,20 @@ import Foundation
 import CoreBluetooth
 import os.log
 
-protocol PeripheralDelegate: class {
+protocol PeripheralManagerDelegate: class {
     func onPeripheralStateChange(description: String)
     func onPeripheralContact(_ contact: Contact)
 }
 
 class Peripheral: NSObject {
-    private weak var delegate: PeripheralDelegate?
+    private weak var delegate: PeripheralManagerDelegate?
 
     private var peripheralManager: CBPeripheralManager!
 
     private let serviceUuid: CBUUID = CBUUID(nsuuid: Uuids.service)
     private let characteristicUuid: CBUUID = CBUUID(nsuuid: Uuids.characteristic)
 
-    init(delegate: PeripheralDelegate) {
+    init(delegate: PeripheralManagerDelegate) {
         self.delegate = delegate
 
         super.init()
