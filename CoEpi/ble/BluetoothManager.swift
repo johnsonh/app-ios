@@ -1,29 +1,43 @@
 // Refactored from https://github.com/covid19risk/covidwatch-ios/blob/master/COVIDWatch%20iOS/Bluetooth/BluetoothController.swift
+/*
+ 1. Start up CBCentralManager
+ 2. CBCentralManager.scanForPeripheralsWithServices
+    3. On discovery, CBCentralManagerDelegate.centralManager(_ central: CBCentralManager, didDiscover peripheral: CentralNamespace.Peripheral, advertisementData: [String: Any], rssi RSSI: NSNumber)
+ 4. CBCentralManager.connect
+    5. On connect, CBCentralManagerDelegate.centralManager(_ central: CBCentralManager, didConnect peripheral: CentralNamespace.Peripheral)
+ 6. peripheral.discoverServices
+ 7. CentralNamespace.PeripheralDelegate.peripheral(_ peripheral: CentralNamespace.Peripheral, didDiscoverServices error: Error?)
+ 8. CentralNamespace.PeripheralDelegate.peripheral(_ peripheral: CentralNamespace.Peripheral, didDiscoverCharacteristicsFor service: Central.Service, error: Error?)
+ 9. peripheral.readValue
+    10. CentralNamespace.PeripheralDelegate.peripheral(_ peripheral: CentralNamespace.Peripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?)
+ */
 
 import Foundation
-import CoreBluetooth
+//import CoreBluetooth
 import os.log
 import UIKit
 
 protocol CentralDelegate: class {
-    func onDiscovered(peripheral: CBPeripheral)
+    func onDiscovered(peripheral: Central.Peripheral)
     func onCentralContact(_ contact: Contact)
 }
 
 class BluetoothManager: NSObject {
     private weak var delegate: CentralDelegate?
+    private var centralManagerDelegate: CentralManagerDelegateInterface?
+    private var peripheralDelegate: PeripheralDelegateInterface?
 
-    private var centralManager: CBCentralManager!
+    private var centralManager: CentralManager!
 
-    private var peripheral: CBPeripheral!
+    private var peripheral: Central.Peripheral!
 
-    private var discoveredPeripherals = Set<CBPeripheral>()
+    private var discoveredPeripherals = Set<Central.Peripheral>()
 
     private var discoveringServicesPeripheralIdentifiers = Set<UUID>()
-    private var readingConfigurationCharacteristics = Set<CBCharacteristic>()
+    private var readingConfigurationCharacteristics = Set<Central.Characteristic>()
 
-    private var peripheralsToReadConfigurationsFrom = Set<CBPeripheral>()
-    private var peripheralsToConnect: Set<CBPeripheral> {
+    private var peripheralsToReadConfigurationsFrom = Set<Central.Peripheral>()
+    private var peripheralsToConnect: Set<Central.Peripheral> {
         Set(peripheralsToReadConfigurationsFrom)
     }
 
@@ -32,7 +46,6 @@ class BluetoothManager: NSObject {
             handleConnectingConnectedPeripheralIdentifiersChange()
         }
     }
-    
     private var connectedPeripheralIdentifiers = Set<UUID>() {
         didSet {
             handleConnectingConnectedPeripheralIdentifiersChange()
@@ -86,10 +99,12 @@ class BluetoothManager: NSObject {
     }
     #endif
 
-    init(delegate: CentralDelegate) {
+    init(delegate: CentralDelegate, centralManager: CentralManager) {
         self.delegate = delegate
         super.init()
-        centralManager = CBCentralManager(delegate: self, queue: nil)
+        self.centralManager = centralManager // CBCentralManager(delegate: self, queue: nil)
+        initCentralManagerDelegate()
+        initPeripheralDelegate()
 
         // macCatalyst apps do not need background support.
         // watchOS apps do not have background tasks.
@@ -132,22 +147,19 @@ class BluetoothManager: NSObject {
 
     private func startScan() {
         let services = servicesToScan()
-        centralManager.scanForPeripherals(
-            withServices: services,
-            options: [
-                CBCentralManagerScanOptionAllowDuplicatesKey : NSNumber(booleanLiteral: true)
-            ]
-        )
+
+        // Why true here? https://developer.apple.com/library/archive/documentation/NetworkingInternetWeb/Conceptual/CoreBluetooth_concepts/BestPracticesForInteractingWithARemotePeripheralDevice/BestPracticesForInteractingWithARemotePeripheralDevice.html#//apple_ref/doc/uid/TP40013257-CH6-SW4
+        centralManager.scanForPeripherals(withServices: services, allowDuplicates: true)
         os_log("Central manager scanning for peripherals with services=%@", log: bleCentralLog, services ?? [])
     }
 
-    private func servicesToScan() -> [CBUUID]? {
+    private func servicesToScan() -> [UUID]? {
         #if targetEnvironment(macCatalyst)
         // CoreBluetooth on macCatalyst doesn't discover services of iOS apps
         // running in the background. Therefore we scan for everything.
         return nil
         #else
-        return [CBUUID(string: Uuids.service.uuidString)]
+        return [Uuids.service]
         #endif
     }
 
@@ -167,7 +179,7 @@ class BluetoothManager: NSObject {
         }
     }
 
-    private func connectIfNeeded(peripheral: CBPeripheral) {
+    private func connectIfNeeded(peripheral: Central.Peripheral) {
         if peripheral.state != .connected && peripheral.state != .connecting {
             centralManager?.connect(peripheral, options: nil)
 
@@ -182,11 +194,11 @@ class BluetoothManager: NSObject {
             connectingPeripheralIdentifiers.insert(peripheral.identifier)
 
         } else {
-            centralManager(centralManager, didConnect: peripheral)
+            centralManagerDelegate?.didConnect(central: centralManager, peripheral: peripheral)
         }
     }
 
-    private func setupConnectingTimeoutTimer(for peripheral: CBPeripheral) {
+    private func setupConnectingTimeoutTimer(for peripheral: Central.Peripheral) {
         let timer = Timer.init(
             timeInterval: .peripheralConnectingTimeout,
             target: self,
@@ -207,7 +219,7 @@ class BluetoothManager: NSObject {
             guard
                 let self = self,
                 let userInfo = userInfo as? [AnyHashable : Any],
-                let peripheral = userInfo["peripheral"] as? CBPeripheral
+                let peripheral = userInfo["peripheral"] as? Central.Peripheral
                 else { return }
 
             if peripheral.state != .connected {
@@ -222,13 +234,13 @@ class BluetoothManager: NSObject {
         }
     }
 
-    private func flushPeripheral(_ peripheral: CBPeripheral) {
+    private func flushPeripheral(_ peripheral: Central.Peripheral) {
         peripheralsToReadConfigurationsFrom.remove(peripheral)
         discoveredPeripherals.remove(peripheral)
         cancelConnectionIfNeeded(for: peripheral)
     }
 
-    private func cancelConnectionIfNeeded(for peripheral: CBPeripheral) {
+    private func cancelConnectionIfNeeded(for peripheral: Central.Peripheral) {
         connectingTimeoutTimersForPeripheralIdentifiers[peripheral.identifier]?.invalidate()
         connectingTimeoutTimersForPeripheralIdentifiers[peripheral.identifier] = nil
 
@@ -259,25 +271,25 @@ class BluetoothManager: NSObject {
 
 }
 
-extension BluetoothManager: CBCentralManagerDelegate {
+// CentralManagerDelegate Implementation
+extension BluetoothManager {
+    func initCentralManagerDelegate() {
+        self.centralManagerDelegate = CentralManagerDelegate(didUpdateState: didUpdateState, didDiscover: didDiscover, didConnect: didConnect)
+    }
 
-    func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        os_log("Central manager did update state: %d", log: bleCentralLog, central.state.rawValue)
-        if central.state == .poweredOn {
+    func didUpdateState(_ central: CentralManager) {
+        if central.bluetoothState == .active {
             startScan()
-            centralManager.scanForPeripherals(withServices: nil)
+            centralManager.scanForPeripherals(withServices: nil, allowDuplicates: false)
         }
     }
 
-    func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
-                        advertisementData: [String: Any], rssi RSSI: NSNumber) {
+    func didDiscover(_ central: CentralManager, _ peripheral: Central.Peripheral, _ advertisementData: [String: Any], _ RSSI: NSNumber) {
 
         delegate?.onDiscovered(peripheral: peripheral)
 
         self.peripheral = peripheral
 //        centralManager.stopScan()
-
-        delegate?.onDiscovered(peripheral: peripheral)
 
 //        os_log("advertisementData: %@", log: bleCentralLog, advertisementData)
 
@@ -296,7 +308,7 @@ extension BluetoothManager: CBCentralManagerDelegate {
         connectPeripheralsIfNeeded()
     }
 
-    func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+    func didConnect(_ central: CentralManager, _ peripheral: Central.Peripheral) {
         os_log(
             "Central manager did connect peripheral (uuid: %@ name: %@)",
             log: bleCentralLog,
@@ -318,16 +330,16 @@ extension BluetoothManager: CBCentralManagerDelegate {
         discoverServices(for: peripheral)
     }
 
-    private func discoverServices(for peripheral: CBPeripheral) {
+    private func discoverServices(for peripheral: Central.Peripheral) {
         guard
             !discoveringServicesPeripheralIdentifiers.contains(peripheral.identifier)
             else { return }
 
         discoveringServicesPeripheralIdentifiers.insert(peripheral.identifier)
-        peripheral.delegate = self
+        peripheral.delegate = peripheralDelegate
 
         if peripheral.services == nil {
-            let services = [CBUUID(string: Uuids.service.uuidString)]
+            let services = [Uuids.service]
             peripheral.discoverServices(services)
 
             os_log(
@@ -338,7 +350,7 @@ extension BluetoothManager: CBCentralManagerDelegate {
                 services
             )
         } else {
-            peripheralShared(peripheral, didDiscoverServices: nil)
+            handleServices(of: peripheral, error: nil)
         }
     }
 
@@ -351,7 +363,7 @@ extension BluetoothManager: CBCentralManagerDelegate {
         ))
     }
 
-    private func peripheralShared(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+    private func handleServices(of peripheral: Central.Peripheral, error: Error?) {
 
         discoveringServicesPeripheralIdentifiers.remove(peripheral.identifier)
 
@@ -374,7 +386,7 @@ extension BluetoothManager: CBCentralManagerDelegate {
 
         } else {
             servicesWithCharacteristicsToDiscover.forEach { service in
-                let characteristics = [ CBUUID(string: Uuids.characteristic.uuidString) ]
+                let characteristics = [Uuids.characteristic]
                 peripheral.discoverCharacteristics(characteristics, for: service)
 
                 os_log(
@@ -392,23 +404,27 @@ extension BluetoothManager: CBCentralManagerDelegate {
 }
 
 
-extension BluetoothManager: CBPeripheralDelegate {
+// PeripheralDelegate Implementation
+extension BluetoothManager {
 
-    func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+    func initPeripheralDelegate() {
+        self.peripheralDelegate = Central.PeripheralDelegate(didDiscoverServices: didDiscoverServices,
+                                                         didDiscoverCharacteristicsFor: didDiscoverCharacteristicsFor,
+                                                         didUpdateValueFor: didUpdateValueFor,
+                                                         didModifyServices: didModifyServices)
+        }
+
+    func didDiscoverServices(_ peripheral: Central.Peripheral, _ error: Error?) {
         guard let services = peripheral.services else { return }
 
         for service in services {
-          os_log("service: %@", log: bleCentralLog, service)
+            os_log("service: %@", log: bleCentralLog, service.description)
         }
 
-        peripheralShared(peripheral, didDiscoverServices: error)
+        handleServices(of: peripheral, error: error)
     }
 
-    func peripheral(
-        _ peripheral: CBPeripheral,
-        didDiscoverCharacteristicsFor service: CBService,
-        error: Error?
-    ) {
+    func didDiscoverCharacteristicsFor(_ peripheral: Central.Peripheral, _ service: Central.Service, _ error: Error?) {
         if let error = error {
             os_log(
                 "Peripheral (uuid: %@ name: %@) did discover characteristics for service: %@ error: %@",
@@ -442,22 +458,21 @@ extension BluetoothManager: CBPeripheralDelegate {
         }
     }
 
-    private func shouldReadConfigurations(from peripheral: CBPeripheral) -> Bool {
+    private func shouldReadConfigurations(from peripheral: Central.Peripheral) -> Bool {
         return self.peripheralsToReadConfigurationsFrom.contains(peripheral)
     }
 
-    private func startTransfers(for peripheral: CBPeripheral) {
+    private func startTransfers(for peripheral: Central.Peripheral) {
         guard let services = peripheral.services else {
             self.cancelConnectionIfNeeded(for: peripheral)
             return
         }
         services.forEach { service in
-            peripheralShared(peripheral, didDiscoverCharacteristicsFor: service, error: nil)
+            handleCharacteristics(of: service, peripheral, error: nil)
         }
     }
 
-    func peripheralShared(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService,
-                          error: Error?) {
+    func handleCharacteristics(of service: Central.Service, _ peripheral: Central.Peripheral, error: Error?) {
         guard error == nil else {
             cancelConnectionIfNeeded(for: peripheral)
             return
@@ -465,7 +480,7 @@ extension BluetoothManager: CBPeripheralDelegate {
 
         // Read configuration, if needed
         if let configurationCharacteristic = service.characteristics?.first(where: {
-            $0.uuid == CBUUID(string: Uuids.characteristic.uuidString)
+            $0.identifier == Uuids.characteristic
         }), shouldReadConfigurations(from: peripheral) {
 
             if !readingConfigurationCharacteristics.contains(configurationCharacteristic) {
@@ -484,11 +499,7 @@ extension BluetoothManager: CBPeripheralDelegate {
         }
     }
 
-    func peripheral(
-        _ peripheral: CBPeripheral,
-        didUpdateValueFor characteristic: CBCharacteristic,
-        error: Error?
-    ) {
+    func didUpdateValueFor(_ peripheral: Central.Peripheral, _ characteristic: Central.Characteristic, _ error: Error?) {
         if let error = error {
             os_log(
                 "Peripheral (uuid: %@ name: '%@') did update value for characteristic: %@ for service: %@ error: %@",
@@ -507,7 +518,7 @@ extension BluetoothManager: CBPeripheralDelegate {
                 log: bleCentralLog,
                 peripheral.identifier.description,
                 peripheral.name ?? "",
-                characteristic.value?.count ?? 0,
+                characteristic.byteCount ?? 0,
                 characteristic.description,
                 characteristic.service.description
             )
@@ -520,8 +531,8 @@ extension BluetoothManager: CBPeripheralDelegate {
                 cancelConnectionIfNeeded(for: peripheral)
                 return
             }
-            guard let value = characteristic.value else {
-                throw CBATTError(.invalidPdu)
+            guard let value = characteristic.dataValue else {
+                throw BTError.invalidPDU
             }
             let identifier = try UUID(dataRepresentation: value)
             addNewContactEvent(with: identifier)
@@ -538,10 +549,8 @@ extension BluetoothManager: CBPeripheralDelegate {
         }
     }
 
-    func peripheral(
-        _ peripheral: CBPeripheral,
-        didModifyServices invalidatedServices: [CBService]
-    ) {
+    // Is there any need for this to be implemented currently?
+    func didModifyServices(_ peripheral: Central.Peripheral, _ invalidatedServices: [Central.Service]) {
         os_log(
             "Peripheral (uuid=%@ name='%@') did modify services=%@",
             log: bleCentralLog,
@@ -550,9 +559,7 @@ extension BluetoothManager: CBPeripheralDelegate {
             invalidatedServices
         )
 
-        if invalidatedServices.contains(where: {
-            $0.uuid == CBUUID(string: Uuids.service.uuidString)
-        }) {
+        if invalidatedServices.contains(where: { $0.identifier == Uuids.service }) {
             peripheralsToReadConfigurationsFrom.insert(peripheral)
             cancelConnectionIfNeeded(for: peripheral)
         }
@@ -562,4 +569,8 @@ extension BluetoothManager: CBPeripheralDelegate {
 
 extension TimeInterval {
     public static let peripheralConnectingTimeout: TimeInterval = 8
+}
+
+enum BTError: Error {
+    case invalidPDU
 }
