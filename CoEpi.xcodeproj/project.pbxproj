@@ -23,12 +23,13 @@
 		84BF973024281082001ADD6B /* DataRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84BF972A24281082001ADD6B /* DataRepresentable.swift */; };
 		84BF973124281082001ADD6B /* Types+DataRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84BF972B24281082001ADD6B /* Types+DataRepresentable.swift */; };
 		84FA00F22427E13000318104 /* Dependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84FA00F12427E13000318104 /* Dependencies.swift */; };
-		84FA00F52427E83000318104 /* BuildFile in Frameworks */ = {isa = PBXBuildFile; productRef = 84FA00F42427E83000318104 /* SwiftPackageProductDependency */; };
+		84FA00F52427E83000318104 /* Dip in Frameworks */ = {isa = PBXBuildFile; productRef = 84FA00F42427E83000318104 /* Dip */; };
 		84FA00FB2427ED1900318104 /* OnboardingViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84FA00F92427ED1900318104 /* OnboardingViewController.swift */; };
 		84FA00FC2427ED1900318104 /* OnboardingViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 84FA00FA2427ED1900318104 /* OnboardingViewController.xib */; };
 		84FA01002427ED5E00318104 /* HomeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84FA00FE2427ED5E00318104 /* HomeViewController.swift */; };
 		84FA01012427ED5E00318104 /* HomeViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 84FA00FF2427ED5E00318104 /* HomeViewController.xib */; };
 		CC71F7CAF64914F41BBE05C5 /* Pods_CoEpi_CoEpiUITests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4AB30FDD8E48688E1BF91F91 /* Pods_CoEpi_CoEpiUITests.framework */; };
+		CE9E4B07242BCD8B00601E5B /* CentralManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9E4B06242BCD8B00601E5B /* CentralManager.swift */; };
 		D7710CEB4F1D549EA29A856F /* Pods_CoEpiTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 89B1FB101DD42773F3ADB2EC /* Pods_CoEpiTests.framework */; };
 		ED84885A0AB19A504317BA10 /* Pods_CoEpi.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 83D98C7D6EAEBFA0E5292E3F /* Pods_CoEpi.framework */; };
 /* End PBXBuildFile section */
@@ -86,6 +87,7 @@
 		89B1FB101DD42773F3ADB2EC /* Pods_CoEpiTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_CoEpiTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		910DD69A29B6DF9226FCFECA /* Pods-CoEpiTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CoEpiTests.debug.xcconfig"; path = "Target Support Files/Pods-CoEpiTests/Pods-CoEpiTests.debug.xcconfig"; sourceTree = "<group>"; };
 		C12F75FF3B79C829E72E1CF6 /* Pods-CoEpi-CoEpiUITests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CoEpi-CoEpiUITests.release.xcconfig"; path = "Target Support Files/Pods-CoEpi-CoEpiUITests/Pods-CoEpi-CoEpiUITests.release.xcconfig"; sourceTree = "<group>"; };
+		CE9E4B06242BCD8B00601E5B /* CentralManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CentralManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -93,7 +95,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				84FA00F52427E83000318104 /* BuildFile in Frameworks */,
+				84FA00F52427E83000318104 /* Dip in Frameworks */,
 				ED84885A0AB19A504317BA10 /* Pods_CoEpi.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -127,7 +129,6 @@
 				910DD69A29B6DF9226FCFECA /* Pods-CoEpiTests.debug.xcconfig */,
 				324F4D7DC6C28946706D180E /* Pods-CoEpiTests.release.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -190,6 +191,7 @@
 			isa = PBXGroup;
 			children = (
 				84BF972924281082001ADD6B /* Central.swift */,
+				CE9E4B06242BCD8B00601E5B /* CentralManager.swift */,
 				84BF972A24281082001ADD6B /* DataRepresentable.swift */,
 				84BF972624281082001ADD6B /* LogSettings.swift */,
 				84BF972724281082001ADD6B /* Peripheral.swift */,
@@ -266,7 +268,7 @@
 			);
 			name = CoEpi;
 			packageProductDependencies = (
-				84FA00F42427E83000318104 /* SwiftPackageProductDependency */,
+				84FA00F42427E83000318104 /* Dip */,
 			);
 			productName = CoEpi;
 			productReference = 849DFE622427D3750008ED65 /* CoEpi.app */;
@@ -344,7 +346,7 @@
 			);
 			mainGroup = 849DFE592427D3750008ED65;
 			packageReferences = (
-				84FA00F32427E83000318104 /* RemoteSwiftPackageReference */,
+				84FA00F32427E83000318104 /* XCRemoteSwiftPackageReference "Dip" */,
 			);
 			productRefGroup = 849DFE632427D3750008ED65 /* Products */;
 			projectDirPath = "";
@@ -507,6 +509,7 @@
 				849DFE702427D3750008ED65 /* CoEpi.xcdatamodeld in Sources */,
 				84FA00F22427E13000318104 /* Dependencies.swift in Sources */,
 				84FA01002427ED5E00318104 /* HomeViewController.swift in Sources */,
+				CE9E4B07242BCD8B00601E5B /* CentralManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -857,7 +860,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		84FA00F32427E83000318104 /* RemoteSwiftPackageReference */ = {
+		84FA00F32427E83000318104 /* XCRemoteSwiftPackageReference "Dip" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/AliSoftware/Dip";
 			requirement = {
@@ -868,9 +871,9 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		84FA00F42427E83000318104 /* SwiftPackageProductDependency */ = {
+		84FA00F42427E83000318104 /* Dip */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 84FA00F32427E83000318104 /* RemoteSwiftPackageReference */;
+			package = 84FA00F32427E83000318104 /* XCRemoteSwiftPackageReference "Dip" */;
 			productName = Dip;
 		};
 /* End XCSwiftPackageProductDependency section */

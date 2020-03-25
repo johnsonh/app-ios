@@ -1,5 +1,4 @@
 // Refactored from https://github.com/covid19risk/covidwatch-ios/blob/master/COVIDWatch%20iOS/Bluetooth/BluetoothController.swift
-
 import Foundation
 import CoreBluetooth
 import os.log
@@ -12,8 +11,9 @@ protocol CentralDelegate: class {
 
 class Central: NSObject {
     private weak var delegate: CentralDelegate?
+    private var centralManagerDelegate: CentralManagerDelegateInterface?
 
-    private var centralManager: CBCentralManager!
+    private var centralManager: CentralManager!
 
     private var peripheral: CBPeripheral!
 
@@ -32,7 +32,6 @@ class Central: NSObject {
             handleConnectingConnectedPeripheralIdentifiersChange()
         }
     }
-    
     private var connectedPeripheralIdentifiers = Set<UUID>() {
         didSet {
             handleConnectingConnectedPeripheralIdentifiersChange()
@@ -86,10 +85,11 @@ class Central: NSObject {
     }
     #endif
 
-    init(delegate: CentralDelegate) {
+    init(delegate: CentralDelegate, centralManager: CentralManager) {
         self.delegate = delegate
         super.init()
-        centralManager = CBCentralManager(delegate: self, queue: nil)
+        self.centralManager = centralManager // CBCentralManager(delegate: self, queue: nil)
+        initDelegate()
 
         // macCatalyst apps do not need background support.
         // watchOS apps do not have background tasks.
@@ -132,12 +132,9 @@ class Central: NSObject {
 
     private func startScan() {
         let services = servicesToScan()
-        centralManager.scanForPeripherals(
-            withServices: services,
-            options: [
-                CBCentralManagerScanOptionAllowDuplicatesKey : NSNumber(booleanLiteral: true)
-            ]
-        )
+
+        // Why true here? https://developer.apple.com/library/archive/documentation/NetworkingInternetWeb/Conceptual/CoreBluetooth_concepts/BestPracticesForInteractingWithARemotePeripheralDevice/BestPracticesForInteractingWithARemotePeripheralDevice.html#//apple_ref/doc/uid/TP40013257-CH6-SW4
+        centralManager.scanForPeripherals(withServices: services?.map { $0.uuidString }, allowDuplicates: true)
         os_log("Central manager scanning for peripherals with services=%@", log: bleCentralLog, services ?? [])
     }
 
@@ -182,7 +179,7 @@ class Central: NSObject {
             connectingPeripheralIdentifiers.insert(peripheral.identifier)
 
         } else {
-            centralManager(centralManager, didConnect: peripheral)
+            centralManagerDelegate?.didConnect(central: centralManager, peripheral: peripheral)
         }
     }
 
@@ -259,25 +256,25 @@ class Central: NSObject {
 
 }
 
-extension Central: CBCentralManagerDelegate {
+// Delegate
+extension Central {
+    func initDelegate() {
+        self.centralManagerDelegate = CentralManagerDelegate(didUpdateState: didUpdateState, didDiscover: didDiscover, didConnect: didConnect)
+    }
 
-    func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        os_log("Central manager did update state: %d", log: bleCentralLog, central.state.rawValue)
-        if central.state == .poweredOn {
+    func didUpdateState(_ central: CentralManager) {
+        if central.bluetoothState == .active {
             startScan()
-            centralManager.scanForPeripherals(withServices: nil)
+            centralManager.scanForPeripherals(withServices: nil, allowDuplicates: false)
         }
     }
 
-    func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
-                        advertisementData: [String: Any], rssi RSSI: NSNumber) {
+    func didDiscover(_ central: CentralManager, _ peripheral: CBPeripheral, _ advertisementData: [String: Any], _ RSSI: NSNumber) {
 
         delegate?.onDiscovered(peripheral: peripheral)
 
         self.peripheral = peripheral
 //        centralManager.stopScan()
-
-        delegate?.onDiscovered(peripheral: peripheral)
 
 //        os_log("advertisementData: %@", log: bleCentralLog, advertisementData)
 
@@ -296,7 +293,7 @@ extension Central: CBCentralManagerDelegate {
         connectPeripheralsIfNeeded()
     }
 
-    func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+    func didConnect(_ central: CentralManager, _ peripheral: CBPeripheral) {
         os_log(
             "Central manager did connect peripheral (uuid: %@ name: %@)",
             log: bleCentralLog,
@@ -538,6 +535,7 @@ extension Central: CBPeripheralDelegate {
         }
     }
 
+    // Is there any need for this to be implemented currently?
     func peripheral(
         _ peripheral: CBPeripheral,
         didModifyServices invalidatedServices: [CBService]
